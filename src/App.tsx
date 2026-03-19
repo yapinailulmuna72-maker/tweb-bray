@@ -233,7 +233,7 @@ function MainApp() {
             </div>
             
             <div className="flex items-center gap-4">
-              {user ? (
+              {user && (
                 <>
                   {userProfile?.role === 'admin' && user.email === 'yapinailulmuna72@gmail.com' && (
                     <button 
@@ -265,19 +265,6 @@ function MainApp() {
                     <LogOut className="w-5 h-5" />
                   </button>
                 </>
-              ) : (
-                <div className="flex flex-col items-end gap-1">
-                  <button 
-                    onClick={loginWithGoogle}
-                    className="bg-emerald-600 text-white px-5 py-2 rounded-full font-medium hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 active:scale-95 flex items-center gap-2"
-                  >
-                    <UserIcon className="w-4 h-4" />
-                    Login with Google
-                  </button>
-                  <p className="text-[9px] text-neutral-400 max-w-[120px] text-right leading-tight">
-                    Jika login gagal, pastikan domain ini sudah terdaftar di Firebase Auth.
-                  </p>
-                </div>
               )}
             </div>
           </div>
@@ -562,10 +549,29 @@ function MainApp() {
 
       {/* Footer */}
       <footer className="mt-auto py-10 border-t border-neutral-200 bg-white">
-        <div className="max-w-7xl mx-auto px-4 text-center">
+        <div className="max-w-7xl mx-auto px-4 text-center space-y-4">
           <p className="text-neutral-500 text-sm">
             &copy; 2026 Twibbon Maker. Built with precision.
           </p>
+          <div className="flex justify-center gap-4">
+            {!user ? (
+              <button 
+                onClick={loginWithGoogle}
+                className="text-neutral-400 hover:text-emerald-600 text-[10px] font-medium transition-colors flex items-center gap-1"
+              >
+                <Settings className="w-3 h-3" />
+                Admin Login
+              </button>
+            ) : (
+              <button 
+                onClick={logout}
+                className="text-neutral-400 hover:text-red-600 text-[10px] font-medium transition-colors flex items-center gap-1"
+              >
+                <LogOut className="w-3 h-3" />
+                Logout Admin
+              </button>
+            )}
+          </div>
         </div>
       </footer>
     </div>
