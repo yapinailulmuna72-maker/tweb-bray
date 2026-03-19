@@ -1061,53 +1061,71 @@ function TwibbonEditor({ template, initialPhoto, onBack }: { template: Template,
   };
 
   const handleDownload = async () => {
+    // If we already have the result image (success screen), use it directly
+    if (isSuccess && resultImage) {
+      const link = document.createElement('a');
+      link.download = `twibbon-${template.name.toLowerCase().replace(/\s+/g, '-')}-${template.size}.png`;
+      link.href = resultImage;
+      link.click();
+      return;
+    }
+
     const canvas = canvasRef.current;
     if (!canvas) return;
     
     setIsProcessing(true);
     
-    // Ensure the latest state is drawn
-    await draw();
-    
-    // Small timeout to allow UI to show processing state
-    setTimeout(() => {
-      try {
-        const dataUrl = canvas.toDataURL('image/png', 1.0);
-        setResultImage(dataUrl);
-        
-        const link = document.createElement('a');
-        link.download = `twibbon-${template.name.toLowerCase().replace(/\s+/g, '-')}-${template.size}.png`;
-        link.href = dataUrl;
-        link.click();
-        
-        setIsProcessing(false);
-        setIsSuccess(true);
-        confetti({
-          particleCount: 150,
-          spread: 70,
-          origin: { y: 0.6 },
-          colors: ['#10b981', '#34d399', '#6ee7b7']
-        });
-      } catch (error) {
-        console.error('Download error:', error);
-        alert('Gagal mengunduh gambar. Silakan coba lagi.');
-        setIsProcessing(false);
-      }
-    }, 100);
-  };
-
-  const handleShare = async () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    setIsProcessing(true);
     try {
       // Ensure the latest state is drawn
       await draw();
       
+      // Small timeout to allow UI to show processing state
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       const dataUrl = canvas.toDataURL('image/png', 1.0);
       setResultImage(dataUrl);
       
+      const link = document.createElement('a');
+      link.download = `twibbon-${template.name.toLowerCase().replace(/\s+/g, '-')}-${template.size}.png`;
+      link.href = dataUrl;
+      link.click();
+      
+      setIsProcessing(false);
+      setIsSuccess(true);
+      confetti({
+        particleCount: 150,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#10b981', '#34d399', '#6ee7b7']
+      });
+    } catch (error) {
+      console.error('Download error:', error);
+      alert('Gagal mengunduh gambar. Silakan coba lagi.');
+      setIsProcessing(false);
+    }
+  };
+
+  const handleShare = async () => {
+    let dataUrl = resultImage;
+
+    // If we don't have the result image yet (still in editor), generate it
+    if (!dataUrl) {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      setIsProcessing(true);
+      try {
+        await draw();
+        dataUrl = canvas.toDataURL('image/png', 1.0);
+        setResultImage(dataUrl);
+      } catch (error) {
+        console.error('Error generating image for share:', error);
+        setIsProcessing(false);
+        return;
+      }
+    }
+
+    try {
       const blob = await (await fetch(dataUrl)).blob();
       const file = new File([blob], 'twibbon.png', { type: 'image/png' });
 
@@ -1127,7 +1145,10 @@ function TwibbonEditor({ template, initialPhoto, onBack }: { template: Template,
     } catch (error) {
       console.error('Error sharing:', error);
       setIsProcessing(false);
-      handleDownload();
+      // Only trigger download if we were trying to share for the first time
+      if (!isSuccess) {
+        handleDownload();
+      }
     }
   };
 
@@ -1167,326 +1188,335 @@ function TwibbonEditor({ template, initialPhoto, onBack }: { template: Template,
     setIsDragging(false);
   };
 
-  if (isSuccess && resultImage) {
-    return (
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="max-w-md mx-auto space-y-8 text-center"
-      >
-        <div className="bg-white p-8 rounded-3xl shadow-xl border border-neutral-200 space-y-6">
-          <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
-            <Check className="w-10 h-10" />
-          </div>
-          <div className="space-y-2">
-            <h2 className="text-3xl font-bold text-neutral-900">Luar Biasa!</h2>
-            <p className="text-neutral-600">Twibbon Anda sudah siap. Bagikan ke teman-teman Anda!</p>
-          </div>
-          
-          <div className="aspect-square rounded-2xl overflow-hidden border border-neutral-100 shadow-inner bg-neutral-50">
-            <img src={resultImage} alt="Result" className="w-full h-full object-contain" />
-          </div>
+  return (
+    <AnimatePresence mode="wait">
+      {isSuccess && resultImage ? (
+        <motion.div 
+          key="success-screen"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.9 }}
+          className="max-w-md mx-auto space-y-8 text-center"
+        >
+          <div className="bg-white p-8 rounded-3xl shadow-xl border border-neutral-200 space-y-6">
+            <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+              <Check className="w-10 h-10" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-3xl font-bold text-neutral-900">Luar Biasa!</h2>
+              <p className="text-neutral-600">Twibbon Anda sudah siap. Bagikan ke teman-teman Anda!</p>
+            </div>
+            
+            <div className="aspect-square rounded-2xl overflow-hidden border border-neutral-100 shadow-inner bg-neutral-50">
+              <img src={resultImage} alt="Result" className="w-full h-full object-contain" />
+            </div>
 
-          <div className="grid grid-cols-1 gap-3">
-            <button 
-              onClick={handleShare}
-              className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 flex items-center justify-center gap-2"
-            >
-              <Share2 className="w-5 h-5" />
-              Bagikan ke Media Sosial
-            </button>
-            <button 
-              onClick={handleDownload}
-              className="w-full bg-white text-neutral-700 py-4 rounded-2xl font-bold border border-neutral-200 hover:bg-neutral-50 transition-all flex items-center justify-center gap-2"
-            >
-              <Download className="w-5 h-5" />
-              Simpan ke Galeri
-            </button>
+            <div className="grid grid-cols-1 gap-3">
+              <button 
+                onClick={handleShare}
+                className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 flex items-center justify-center gap-2"
+              >
+                <Share2 className="w-5 h-5" />
+                Bagikan ke Media Sosial
+              </button>
+              <button 
+                onClick={handleDownload}
+                className="w-full bg-white text-neutral-700 py-4 rounded-2xl font-bold border border-neutral-200 hover:bg-neutral-50 transition-all flex items-center justify-center gap-2"
+              >
+                <Download className="w-5 h-5" />
+                Simpan ke Galeri
+              </button>
+              <button 
+                onClick={onBack}
+                className="w-full text-neutral-500 py-2 font-medium hover:text-neutral-900 transition-all flex items-center justify-center gap-2"
+              >
+                <Home className="w-4 h-4" />
+                Kembali ke Beranda
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      ) : (
+        <motion.div 
+          key="editor-ui"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="space-y-6 sm:space-y-8"
+        >
+          <div className="flex items-center justify-between gap-4">
             <button 
               onClick={onBack}
-              className="w-full text-neutral-500 py-2 font-medium hover:text-neutral-900 transition-all flex items-center justify-center gap-2"
+              className="flex items-center gap-2 text-neutral-500 hover:text-neutral-900 font-medium transition-colors bg-white px-4 py-2 rounded-full border border-neutral-200 shadow-sm"
             >
-              <Home className="w-4 h-4" />
-              Kembali ke Beranda
+              <ArrowLeft className="w-5 h-5" />
+              <span className="hidden sm:inline">Kembali</span>
             </button>
-          </div>
-        </div>
-      </motion.div>
-    );
-  }
-
-  return (
-    <div className="space-y-6 sm:space-y-8">
-      <div className="flex items-center justify-between gap-4">
-        <button 
-          onClick={onBack}
-          className="flex items-center gap-2 text-neutral-500 hover:text-neutral-900 font-medium transition-colors bg-white px-4 py-2 rounded-full border border-neutral-200 shadow-sm"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          <span className="hidden sm:inline">Kembali</span>
-        </button>
-        <h2 className="text-xl sm:text-2xl font-bold tracking-tight truncate max-w-[150px] sm:max-w-none">{template.name}</h2>
-        <div className="flex gap-2">
-          <button 
-            onClick={handleShare}
-            disabled={!photo || isProcessing}
-            className="bg-white text-emerald-600 p-2.5 sm:px-4 sm:py-2.5 rounded-full font-bold border border-emerald-100 hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm flex items-center gap-2"
-            title="Bagikan"
-          >
-            {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Share2 className="w-5 h-5" />}
-            <span className="hidden sm:inline">Bagikan</span>
-          </button>
-          <button 
-            onClick={handleDownload}
-            disabled={!photo || isProcessing}
-            className="bg-emerald-600 text-white p-2.5 sm:px-6 sm:py-2.5 rounded-full font-bold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-emerald-100 flex items-center gap-2"
-            title="Simpan"
-          >
-            {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
-            <span className="hidden sm:inline">Simpan</span>
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Canvas Preview */}
-        <div className="lg:col-span-7 flex flex-col items-center justify-center bg-neutral-200 rounded-2xl sm:rounded-3xl p-4 sm:p-8 overflow-hidden min-h-[500px] lg:min-h-[700px]">
-          <div className="mb-4 flex items-center gap-2 bg-white/80 backdrop-blur-sm px-3 py-1 rounded-full border border-white shadow-sm">
-            <Maximize className="w-3 h-3 text-emerald-600" />
-            <span className="text-[10px] font-bold text-neutral-600 uppercase tracking-widest">{template.size} PX</span>
-          </div>
-          
-          <div 
-            className="relative shadow-2xl bg-white overflow-hidden cursor-move touch-none"
-            style={{ 
-              width: canvasWidth > canvasHeight ? '100%' : 'auto', 
-              height: canvasWidth > canvasHeight ? 'auto' : '100%',
-              maxWidth: '100%',
-              maxHeight: '100%',
-              aspectRatio: `${canvasWidth}/${canvasHeight}`
-            }}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-            onTouchStart={handleMouseDown}
-            onTouchMove={handleMouseMove}
-            onTouchEnd={handleMouseUp}
-          >
-            <canvas 
-              ref={canvasRef}
-              width={canvasWidth}
-              height={canvasHeight}
-              className="w-full h-full"
-            />
-            
-            {/* Mascot Generation Overlay */}
-            <AnimatePresence>
-              {isGeneratingMascot && (
-                <motion.div 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="absolute inset-0 flex flex-col items-center justify-center bg-white/60 backdrop-blur-sm z-10"
-                >
-                  <div className="relative">
-                    <div className="w-20 h-20 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
-                    <Sparkles className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 text-emerald-600 animate-pulse" />
-                  </div>
-                  <p className="mt-4 text-emerald-800 font-bold text-center px-6">
-                    Sedang Merancang Maskot AI Anda...
-                  </p>
-                  <p className="text-emerald-600/70 text-xs mt-1">Ini mungkin memerlukan waktu beberapa detik</p>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {!photo && (
-              <div 
-                className="absolute inset-0 flex flex-col items-center justify-center bg-black/5 backdrop-blur-[2px] cursor-pointer"
-                onClick={() => photoInputRef.current?.click()}
-              >
-                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-lg text-emerald-600 mb-4">
-                  <Upload className="w-8 h-8" />
-                </div>
-                <p className="text-neutral-800 font-bold">Klik untuk unggah foto</p>
-                <p className="text-neutral-500 text-sm">PNG atau JPG</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Controls */}
-        <div className="lg:col-span-5 space-y-4 sm:space-y-6">
-          <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-neutral-200 shadow-sm space-y-4 sm:space-y-6">
-            {/* Layer Tabs */}
-            <div className="flex p-1 bg-neutral-100 rounded-xl">
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight truncate max-w-[150px] sm:max-w-none">{template.name}</h2>
+            <div className="flex gap-2">
               <button 
-                onClick={() => setActiveLayer('photo')}
-                className={cn(
-                  "flex-1 py-2 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2",
-                  activeLayer === 'photo' ? "bg-white text-emerald-600 shadow-sm" : "text-neutral-500 hover:text-neutral-700"
-                )}
+                onClick={handleShare}
+                disabled={!photo || isProcessing}
+                className="bg-white text-emerald-600 p-2.5 sm:px-4 sm:py-2.5 rounded-full font-bold border border-emerald-100 hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm flex items-center gap-2"
+                title="Bagikan"
               >
-                <ImageIcon className="w-4 h-4" />
-                Foto Utama
+                {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Share2 className="w-5 h-5" />}
+                <span className="hidden sm:inline">Bagikan</span>
               </button>
               <button 
-                onClick={() => setActiveLayer('mascot')}
-                className={cn(
-                  "flex-1 py-2 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2",
-                  activeLayer === 'mascot' ? "bg-white text-emerald-600 shadow-sm" : "text-neutral-500 hover:text-neutral-700"
-                )}
+                onClick={handleDownload}
+                disabled={!photo || isProcessing}
+                className="bg-emerald-600 text-white p-2.5 sm:px-6 sm:py-2.5 rounded-full font-bold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-emerald-100 flex items-center gap-2"
+                title="Simpan"
               >
-                <Sparkles className="w-4 h-4" />
-                Maskot AI
+                {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+                <span className="hidden sm:inline">Simpan</span>
               </button>
             </div>
+          </div>
 
-            <div className="space-y-4">
-              <h3 className="text-lg font-bold flex items-center gap-2">
-                <Settings className="w-5 h-5 text-emerald-600" />
-                {activeLayer === 'photo' ? 'Atur Foto Utama' : 'Atur Maskot AI'}
-              </h3>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Canvas Preview */}
+            <div className="lg:col-span-7 flex flex-col items-center justify-center bg-neutral-200 rounded-2xl sm:rounded-3xl p-4 sm:p-8 overflow-hidden min-h-[500px] lg:min-h-[700px]">
+              <div className="mb-4 flex items-center gap-2 bg-white/80 backdrop-blur-sm px-3 py-1 rounded-full border border-white shadow-sm">
+                <Maximize className="w-3 h-3 text-emerald-600" />
+                <span className="text-[10px] font-bold text-neutral-600 uppercase tracking-widest">{template.size} PX</span>
+              </div>
               
-              <div className="space-y-4">
-                {activeLayer === 'photo' ? (
-                  <>
-                    <button 
-                      onClick={() => photoInputRef.current?.click()}
-                      className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-emerald-100 text-emerald-700 font-bold hover:bg-emerald-50 transition-all"
+              <div 
+                className="relative shadow-2xl bg-white overflow-hidden cursor-move touch-none"
+                style={{ 
+                  width: canvasWidth > canvasHeight ? '100%' : 'auto', 
+                  height: canvasWidth > canvasHeight ? 'auto' : '100%',
+                  maxWidth: '100%',
+                  maxHeight: '100%',
+                  aspectRatio: `${canvasWidth}/${canvasHeight}`
+                }}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+                onTouchStart={handleMouseDown}
+                onTouchMove={handleMouseMove}
+                onTouchEnd={handleMouseUp}
+              >
+                <canvas 
+                  ref={canvasRef}
+                  width={canvasWidth}
+                  height={canvasHeight}
+                  className="w-full h-full"
+                />
+                
+                {/* Mascot Generation Overlay */}
+                <AnimatePresence>
+                  {isGeneratingMascot && (
+                    <motion.div 
+                      key="mascot-loading"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="absolute inset-0 flex flex-col items-center justify-center bg-white/60 backdrop-blur-sm z-10"
                     >
-                      <ImageIcon className="w-5 h-5" />
-                      {photo ? 'Ganti Foto' : 'Pilih Foto'}
-                    </button>
-                    <input 
-                      type="file" 
-                      ref={photoInputRef}
-                      onChange={handlePhotoUpload}
-                      accept="image/*"
-                      className="hidden"
-                    />
-
-                    {photo && (
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm font-semibold text-neutral-600">
-                          <label className="flex items-center gap-1"><ZoomIn className="w-4 h-4" /> Zoom Foto</label>
-                          <span>{Math.round(editorState.scale * 100)}%</span>
-                        </div>
-                        <input 
-                          type="range" 
-                          min="0.1" 
-                          max="3" 
-                          step="0.01"
-                          value={editorState.scale}
-                          onChange={(e) => setEditorState(prev => ({ ...prev, scale: parseFloat(e.target.value) }))}
-                          className="w-full h-2 bg-neutral-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
-                        />
+                      <div className="relative">
+                        <div className="w-20 h-20 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
+                        <Sparkles className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 text-emerald-600 animate-pulse" />
                       </div>
+                      <p className="mt-4 text-emerald-800 font-bold text-center px-6">
+                        Sedang Merancang Maskot AI Anda...
+                      </p>
+                      <p className="text-emerald-600/70 text-xs mt-1">Ini mungkin memerlukan waktu beberapa detik</p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {!photo && (
+                  <div 
+                    className="absolute inset-0 flex flex-col items-center justify-center bg-black/5 backdrop-blur-[2px] cursor-pointer"
+                    onClick={() => photoInputRef.current?.click()}
+                  >
+                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-lg text-emerald-600 mb-4">
+                      <Upload className="w-8 h-8" />
+                    </div>
+                    <p className="text-neutral-800 font-bold">Klik untuk unggah foto</p>
+                    <p className="text-neutral-500 text-sm">PNG atau JPG</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Controls */}
+            <div className="lg:col-span-5 space-y-4 sm:space-y-6">
+              <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-neutral-200 shadow-sm space-y-4 sm:space-y-6">
+                {/* Layer Tabs */}
+                <div className="flex p-1 bg-neutral-100 rounded-xl">
+                  <button 
+                    onClick={() => setActiveLayer('photo')}
+                    className={cn(
+                      "flex-1 py-2 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2",
+                      activeLayer === 'photo' ? "bg-white text-emerald-600 shadow-sm" : "text-neutral-500 hover:text-neutral-700"
                     )}
-                  </>
-                ) : (
+                  >
+                    <ImageIcon className="w-4 h-4" />
+                    Foto Utama
+                  </button>
+                  <button 
+                    onClick={() => setActiveLayer('mascot')}
+                    className={cn(
+                      "flex-1 py-2 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2",
+                      activeLayer === 'mascot' ? "bg-white text-emerald-600 shadow-sm" : "text-neutral-500 hover:text-neutral-700"
+                    )}
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    Maskot AI
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="text-lg font-bold flex items-center gap-2">
+                    <Settings className="w-5 h-5 text-emerald-600" />
+                    {activeLayer === 'photo' ? 'Atur Foto Utama' : 'Atur Maskot AI'}
+                  </h3>
+                  
                   <div className="space-y-4">
-                    {!editorState.mascot ? (
-                      <button 
-                        onClick={handleGenerateMascot}
-                        disabled={isGeneratingMascot || !photo}
-                        className="w-full flex flex-col items-center justify-center gap-2 py-8 rounded-2xl border-2 border-dashed border-emerald-200 text-emerald-700 font-bold hover:bg-emerald-50 transition-all disabled:opacity-50"
-                      >
-                        {isGeneratingMascot ? (
-                          <>
-                            <Loader2 className="w-8 h-8 animate-spin" />
-                            <span>Sedang Membuat Maskot...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="w-8 h-8" />
-                            <span>Buat Maskot AI dari Foto</span>
-                            <span className="text-[10px] font-normal text-neutral-400">Karakter 3D Disney akan muncul di depan bingkai</span>
-                          </>
-                        )}
-                      </button>
-                    ) : (
+                    {activeLayer === 'photo' ? (
                       <>
-                        <div className="flex gap-2">
+                        <button 
+                          onClick={() => photoInputRef.current?.click()}
+                          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-emerald-100 text-emerald-700 font-bold hover:bg-emerald-50 transition-all"
+                        >
+                          <ImageIcon className="w-5 h-5" />
+                          {photo ? 'Ganti Foto' : 'Pilih Foto'}
+                        </button>
+                        <input 
+                          type="file" 
+                          ref={photoInputRef}
+                          onChange={handlePhotoUpload}
+                          accept="image/*"
+                          className="hidden"
+                        />
+
+                        {photo && (
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-sm font-semibold text-neutral-600">
+                              <label className="flex items-center gap-1"><ZoomIn className="w-4 h-4" /> Zoom Foto</label>
+                              <span>{Math.round(editorState.scale * 100)}%</span>
+                            </div>
+                            <input 
+                              type="range" 
+                              min="0.1" 
+                              max="3" 
+                              step="0.01"
+                              value={editorState.scale}
+                              onChange={(e) => setEditorState(prev => ({ ...prev, scale: parseFloat(e.target.value) }))}
+                              className="w-full h-2 bg-neutral-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                            />
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="space-y-4">
+                        {!editorState.mascot ? (
                           <button 
                             onClick={handleGenerateMascot}
-                            disabled={isGeneratingMascot}
-                            className="flex-1 py-2 rounded-xl border border-emerald-200 text-emerald-700 font-bold text-xs hover:bg-emerald-50 transition-all flex items-center justify-center gap-1"
+                            disabled={isGeneratingMascot || !photo}
+                            className="w-full flex flex-col items-center justify-center gap-2 py-8 rounded-2xl border-2 border-dashed border-emerald-200 text-emerald-700 font-bold hover:bg-emerald-50 transition-all disabled:opacity-50"
                           >
-                            {isGeneratingMascot ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
-                            Buat Ulang
+                            {isGeneratingMascot ? (
+                              <>
+                                <Loader2 className="w-8 h-8 animate-spin" />
+                                <span>Sedang Membuat Maskot...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-8 h-8" />
+                                <span>Buat Maskot AI dari Foto</span>
+                                <span className="text-[10px] font-normal text-neutral-400">Karakter 3D Disney akan muncul di depan bingkai</span>
+                              </>
+                            )}
+                          </button>
+                        ) : (
+                          <>
+                            <div className="flex gap-2">
+                              <button 
+                                onClick={handleGenerateMascot}
+                                disabled={isGeneratingMascot}
+                                className="flex-1 py-2 rounded-xl border border-emerald-200 text-emerald-700 font-bold text-xs hover:bg-emerald-50 transition-all flex items-center justify-center gap-1"
+                              >
+                                {isGeneratingMascot ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
+                                Buat Ulang
+                              </button>
+                              <button 
+                                onClick={() => setEditorState(prev => ({ ...prev, mascot: null }))}
+                                className="py-2 px-4 rounded-xl bg-red-50 text-red-600 font-bold text-xs hover:bg-red-100 transition-all"
+                              >
+                                Hapus
+                              </button>
+                            </div>
+
+                            <div className="space-y-2">
+                              <div className="flex justify-between text-sm font-semibold text-neutral-600">
+                                <label className="flex items-center gap-1"><ZoomIn className="w-4 h-4" /> Zoom Maskot</label>
+                                <span>{Math.round((editorState.mascotScale || 0.5) * 100)}%</span>
+                              </div>
+                              <input 
+                                type="range" 
+                                min="0.1" 
+                                max="2" 
+                                step="0.01"
+                                value={editorState.mascotScale || 0.5}
+                                onChange={(e) => setEditorState(prev => ({ ...prev, mascotScale: parseFloat(e.target.value) }))}
+                                className="w-full h-2 bg-neutral-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                              />
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {photo && (
+                      <div className="pt-4 border-t border-neutral-100">
+                        <p className="text-xs text-neutral-400 flex items-center gap-1 mb-4">
+                          <Move className="w-3 h-3" /> Tips: Geser {activeLayer === 'photo' ? 'foto' : 'maskot'} di kanvas untuk memindahkan posisinya.
+                        </p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button 
+                            onClick={() => {
+                              if (activeLayer === 'photo') {
+                                setEditorState(prev => ({ ...prev, x: 0, y: 0, scale: 1 }));
+                              } else {
+                                setEditorState(prev => ({ ...prev, mascotX: canvasWidth * 0.2, mascotY: canvasHeight * 0.2, mascotScale: 0.4 }));
+                              }
+                            }}
+                            className="py-2 rounded-xl bg-neutral-100 text-neutral-600 font-bold hover:bg-neutral-200 transition-all text-sm"
+                          >
+                            Atur Ulang
                           </button>
                           <button 
-                            onClick={() => setEditorState(prev => ({ ...prev, mascot: null }))}
-                            className="py-2 px-4 rounded-xl bg-red-50 text-red-600 font-bold text-xs hover:bg-red-100 transition-all"
-                          >
-                            Hapus
-                          </button>
-                        </div>
-
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm font-semibold text-neutral-600">
-                            <label className="flex items-center gap-1"><ZoomIn className="w-4 h-4" /> Zoom Maskot</label>
-                            <span>{Math.round((editorState.mascotScale || 0.5) * 100)}%</span>
+                              onClick={handleDownload}
+                              className="py-2 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition-all text-sm shadow-lg shadow-emerald-100"
+                            >
+                              Unduh Hasil
+                            </button>
                           </div>
-                          <input 
-                            type="range" 
-                            min="0.1" 
-                            max="2" 
-                            step="0.01"
-                            value={editorState.mascotScale || 0.5}
-                            onChange={(e) => setEditorState(prev => ({ ...prev, mascotScale: parseFloat(e.target.value) }))}
-                            className="w-full h-2 bg-neutral-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
-                          />
                         </div>
-                      </>
                     )}
                   </div>
-                )}
+                </div>
+              </div>
 
-                {photo && (
-                  <div className="pt-4 border-t border-neutral-100">
-                    <p className="text-xs text-neutral-400 flex items-center gap-1 mb-4">
-                      <Move className="w-3 h-3" /> Tips: Geser {activeLayer === 'photo' ? 'foto' : 'maskot'} di kanvas untuk memindahkan posisinya.
-                    </p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button 
-                        onClick={() => {
-                          if (activeLayer === 'photo') {
-                            setEditorState(prev => ({ ...prev, x: 0, y: 0, scale: 1 }));
-                          } else {
-                            setEditorState(prev => ({ ...prev, mascotX: canvasWidth * 0.2, mascotY: canvasHeight * 0.2, mascotScale: 0.4 }));
-                          }
-                        }}
-                        className="py-2 rounded-xl bg-neutral-100 text-neutral-600 font-bold hover:bg-neutral-200 transition-all text-sm"
-                      >
-                        Atur Ulang
-                      </button>
-                      <button 
-                          onClick={handleDownload}
-                          className="py-2 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition-all text-sm shadow-lg shadow-emerald-100"
-                        >
-                          Unduh Hasil
-                        </button>
-                      </div>
-                    </div>
-                )}
+              <div className="bg-emerald-50 p-6 rounded-3xl border border-emerald-100">
+                <h4 className="font-bold text-emerald-800 mb-2">Instruksi:</h4>
+                <ul className="text-sm text-emerald-700 space-y-2 list-disc list-inside">
+                  <li>Unggah foto Anda yang jelas.</li>
+                  <li>Gunakan slider untuk memperbesar atau memperkecil.</li>
+                  <li>Geser foto untuk menyesuaikan posisi dengan bingkai.</li>
+                  <li>Klik unduh untuk menyimpan Twibbon Anda!</li>
+                </ul>
               </div>
             </div>
           </div>
-
-          <div className="bg-emerald-50 p-6 rounded-3xl border border-emerald-100">
-            <h4 className="font-bold text-emerald-800 mb-2">Instruksi:</h4>
-            <ul className="text-sm text-emerald-700 space-y-2 list-disc list-inside">
-              <li>Unggah foto Anda yang jelas.</li>
-              <li>Gunakan slider untuk memperbesar atau memperkecil.</li>
-              <li>Geser foto untuk menyesuaikan posisi dengan bingkai.</li>
-              <li>Klik unduh untuk menyimpan Twibbon Anda!</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
