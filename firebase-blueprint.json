@@ -1,0 +1,62 @@
+{
+  "entities": {
+    "Template": {
+      "title": "Twibbon Template",
+      "description": "A Twibbon template that users can overlay on their photos.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the template."
+        },
+        "size": {
+          "type": "string",
+          "enum": ["1080x1080", "1080x1920"],
+          "description": "The dimensions of the template."
+        },
+        "imageData": {
+          "type": "string",
+          "description": "Base64 encoded image data of the template (PNG with transparency)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The time the template was created."
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "The UID of the admin who created the template."
+        }
+      },
+      "required": ["name", "size", "imageData", "createdAt", "createdBy"]
+    },
+    "User": {
+      "title": "User Profile",
+      "description": "User information and roles.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The user's email address."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "user"],
+          "description": "The user's role in the application."
+        }
+      },
+      "required": ["email", "role"]
+    }
+  },
+  "firestore": {
+    "/templates/{templateId}": {
+      "schema": "Template",
+      "description": "Collection of Twibbon templates."
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Collection of user profiles."
+    }
+  }
+}
