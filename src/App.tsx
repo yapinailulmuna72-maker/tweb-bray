@@ -44,7 +44,7 @@ import {
   Timestamp,
   getDoc
 } from 'firebase/firestore';
-import { auth, db, loginWithGoogle, logout, handleFirestoreError, OperationType } from './firebase';
+import { auth, db, loginWithGoogle, logout, handleFirestoreError, OperationType, APP_VERSION, getGeminiApiKey } from './firebase';
 import { Template, UserProfile, EditorState } from './types';
 import confetti from 'canvas-confetti';
 import { clsx, type ClassValue } from 'clsx';
@@ -266,13 +266,18 @@ function MainApp() {
                   </button>
                 </>
               ) : (
-                <button 
-                  onClick={loginWithGoogle}
-                  className="bg-emerald-600 text-white px-5 py-2 rounded-full font-medium hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 active:scale-95 flex items-center gap-2"
-                >
-                  <UserIcon className="w-4 h-4" />
-                  Login with Google
-                </button>
+                <div className="flex flex-col items-end gap-1">
+                  <button 
+                    onClick={loginWithGoogle}
+                    className="bg-emerald-600 text-white px-5 py-2 rounded-full font-medium hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 active:scale-95 flex items-center gap-2"
+                  >
+                    <UserIcon className="w-4 h-4" />
+                    Login with Google
+                  </button>
+                  <p className="text-[9px] text-neutral-400 max-w-[120px] text-right leading-tight">
+                    Jika login gagal, pastikan domain ini sudah terdaftar di Firebase Auth.
+                  </p>
+                </div>
               )}
             </div>
           </div>
@@ -293,6 +298,7 @@ function MainApp() {
                 <h1 className="text-3xl font-black text-neutral-900 tracking-tight">Twibbon Maker</h1>
                 <p className="text-emerald-600 font-bold text-xs tracking-widest uppercase">Bray boon profesional tool</p>
                 <p className="text-neutral-500 text-sm">Buat twibbon kampanye Anda dengan mudah dan cepat</p>
+                <p className="text-[10px] text-neutral-400">Versi {APP_VERSION}</p>
               </div>
 
               <div className="bg-white rounded-[2rem] border border-neutral-200 shadow-xl overflow-hidden">
@@ -880,9 +886,15 @@ function TwibbonEditor({ template, initialPhoto, onBack }: { template: Template,
   const handleGenerateMascot = async () => {
     if (!photo) return;
     
+    const apiKey = getGeminiApiKey();
+    if (!apiKey) {
+      alert('Fitur Maskot AI memerlukan API Key. Silakan hubungi admin untuk menambahkan GEMINI_API_KEY di pengaturan rahasia (Secrets).');
+      return;
+    }
+
     setIsGeneratingMascot(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey });
       
       const base64Data = photo.split(',')[1];
       const mimeType = photo.split(';')[0].split(':')[1];

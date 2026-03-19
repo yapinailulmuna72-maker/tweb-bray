@@ -95,6 +95,16 @@ export const loginWithGoogle = async () => {
 
 export const logout = () => signOut(auth);
 
+export const APP_VERSION = '1.0.1'; // Increment this for each update
+
+export const getGeminiApiKey = () => {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) {
+    console.warn('GEMINI_API_KEY is missing. AI Mascot generation will not work.');
+  }
+  return key;
+};
+
 // Test connection to Firestore
 async function testConnection() {
   try {
