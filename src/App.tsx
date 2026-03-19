@@ -155,7 +155,7 @@ function MainApp() {
   }, []);
 
   useEffect(() => {
-    const q = query(collection(db, 'templates'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'templates'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       console.log('Templates snapshot received, count:', snapshot.size);
       const templateList = snapshot.docs.map(doc => ({
